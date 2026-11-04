@@ -1,4 +1,4 @@
-import type { FotoEnviada } from "./types";
+import type { Foto, FotoEnviada } from "./types";
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -17,4 +17,14 @@ export async function enviarFoto(nome: string, foto: Blob): Promise<FotoEnviada>
     throw new Error(erro?.detail ?? "Não foi possível enviar a foto.");
   }
   return resposta.json();
+}
+
+export async function listarFotos(): Promise<Foto[]> {
+  const resposta = await fetch(`${API_URL}/photos`);
+  if (!resposta.ok) throw new Error("Não foi possível carregar o álbum.");
+  return resposta.json();
+}
+
+export function urlAbsoluta(caminho: string): string {
+  return `${API_URL}${caminho}`;
 }

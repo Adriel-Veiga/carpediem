@@ -4,7 +4,13 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.database import Base, engine, get_db
+from app.models import Photo
 from app.images import processar
 app = FastAPI(title="CarpeDiem")
 
@@ -17,6 +23,8 @@ app.add_middleware(
 )
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
+Base.metadata.create_all(engine)  # cria a tabela se ainda não existir
+app.mount("/media", StaticFiles(directory=UPLOAD_DIR), name="media")
 
 TIPOS_PERMITIDOS = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 TAMANHO_MAXIMO = 15 * 1024 * 1024  # 15 MB
@@ -31,6 +39,7 @@ def health():
 async def enviar_foto(
     author_name: str = Form(...),
     file: UploadFile = File(...),
+    db: Session = Depends(get_db)
 ):
     nome = author_name.strip()
     if not nome:
@@ -52,6 +61,16 @@ async def enviar_foto(
     (UPLOAD_DIR / f"{base}.jpg").write_bytes(resultado["principal"])
     (UPLOAD_DIR / f"{base}_thumb.jpg").write_bytes(resultado["miniatura"])
 
+    foto = Photo(
+        id=base,
+        author_name=nome,
+        width=resultado["largura"],
+        height=resultado["altura"],
+        orientation=resultado["orientacao"],
+    )
+    db.add(foto)
+    db.commit()
+
     return {
         "id": base,
         "author_name": nome,
@@ -59,3 +78,23 @@ async def enviar_foto(
         "height": resultado["altura"],
         "orientation": resultado["orientacao"],
     }
+
+@app.get("/photos")
+def listar_fotos(db: Session = Depends(get_db)):
+    consulta = (
+        select(Photo)
+        .where(Photo.deleted.is_(False))
+        .order_by(Photo.created_at.desc())
+    )
+    return [
+        {
+            "id": f.id,
+            "author_name": f.author_name,
+            "width": f.width,
+            "height": f.height,
+            "orientation": f.orientation,
+            "url": f"/media/{f.id}.jpg",
+            "thumb_url": f"/media/{f.id}_thumb.jpg",
+        }
+        for f in db.scalars(consulta).all()
+    ]

@@ -7,3 +7,8 @@ export interface FotoEnviada {
   height: number;
   orientation: Orientacao;
 }
+
+export interface Foto extends FotoEnviada {
+  url: string;
+  thumb_url: string;
+}
