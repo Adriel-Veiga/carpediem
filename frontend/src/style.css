@@ -15,6 +15,7 @@ body {
   display: grid;
   place-items: center;
   padding: 1rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cartao {
@@ -121,4 +122,43 @@ p { margin: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .foto { animation: none; opacity: 1; }
+}
+
+.foto { cursor: zoom-in; }
+
+.visualizador {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: visible;
+}
+.visualizador::backdrop { background: rgb(40 5 20 / 80%); }
+
+.visualizador .conteudo {
+  position: relative;
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+}
+.visualizador img {
+  max-width: 92vw;
+  max-height: 80vh;
+  border-radius: 0.9rem;
+}
+.visualizador p { margin: 0; color: #fff; font-weight: 600; }
+
+#fechar {
+  position: absolute;
+  top: -0.6rem;
+  right: -0.6rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--magenta);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
 }

@@ -3,6 +3,13 @@ import type { Foto } from "../types";
 
 export async function montarGaleria(app: HTMLElement): Promise<void> {
   app.innerHTML = `
+        <dialog id="visualizador" class="visualizador">
+        <div class="conteudo">
+          <button id="fechar" type="button" aria-label="Fechar">✕</button>
+          <img id="foto-grande" alt="" />
+          <p id="foto-autor"></p>
+        </div>
+      </dialog>
     <main class="galeria-pagina">
       <header class="galeria-topo">
         <h1>Álbum da Anna Lua</h1>
@@ -15,6 +22,22 @@ export async function montarGaleria(app: HTMLElement): Promise<void> {
 
   const estado = app.querySelector<HTMLParagraphElement>("#estado")!;
   const mosaico = app.querySelector<HTMLElement>("#mosaico")!;
+    const dialogo = app.querySelector<HTMLDialogElement>("#visualizador")!;
+  const fotoGrande = app.querySelector<HTMLImageElement>("#foto-grande")!;
+  const fotoAutor = app.querySelector<HTMLParagraphElement>("#foto-autor")!;
+
+  app.querySelector<HTMLButtonElement>("#fechar")!.addEventListener("click", () => dialogo.close());
+  // Clicar no fundo escuro (fora da foto) também fecha
+  dialogo.addEventListener("click", (evento) => {
+    if (evento.target === dialogo) dialogo.close();
+  });
+
+  function abrir(foto: Foto): void {
+    fotoGrande.src = urlAbsoluta(foto.url);
+    fotoGrande.alt = `Foto enviada por ${foto.author_name}`;
+    fotoAutor.textContent = `Enviada por ${foto.author_name}`;
+    dialogo.showModal();
+  }
 
   let fotos: Foto[];
   try {
@@ -43,6 +66,12 @@ export async function montarGaleria(app: HTMLElement): Promise<void> {
 
     const legenda = document.createElement("figcaption");
     legenda.textContent = foto.author_name;
+
+    figura.tabIndex = 0; // permite navegar com o teclado
+    figura.addEventListener("click", () => abrir(foto));
+    figura.addEventListener("keydown", (evento) => {
+      if (evento.key === "Enter") abrir(foto);
+    });
 
     figura.append(imagem, legenda);
     mosaico.append(figura);
