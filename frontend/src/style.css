@@ -162,3 +162,32 @@ p { margin: 0; }
   font-size: 1.1rem;
   cursor: pointer;
 }
+
+.acoes { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.acoes .botao { padding: 0.6rem 1.2rem; text-decoration: none; }
+.botao.secundario {
+  background: var(--rosa-claro);
+  color: var(--magenta);
+  border: 2px solid var(--rosa);
+}
+
+.foto.admin { cursor: default; }
+.foto.admin figcaption {
+  transform: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.foto.admin figcaption span { flex: 1 0 100%; }
+.foto.admin figcaption button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  background: #fff;
+  color: var(--magenta);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foto.oculta img { filter: grayscale(1) opacity(0.45); }

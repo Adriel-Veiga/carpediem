@@ -12,3 +12,7 @@ export interface Foto extends FotoEnviada {
   url: string;
   thumb_url: string;
 }
+
+export interface FotoAdmin extends Foto {
+  deleted: boolean;
+}

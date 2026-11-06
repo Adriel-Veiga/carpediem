@@ -1,6 +1,7 @@
 import "./style.css";
 import { montarUpload } from "./pages/upload";
 import { montarGaleria } from "./pages/galeria";
+import { montarAdmin } from "./pages/admin";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -9,6 +10,8 @@ function rotear(): void {
   app.innerHTML = "";
   if (rota === "/galeria") {
     void montarGaleria(app);
+  } else if (rota === "/admin") {
+    montarAdmin(app);
   } else {
     montarUpload(app);
   }
