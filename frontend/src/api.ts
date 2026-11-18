@@ -24,11 +24,9 @@ export async function listarFotos(): Promise<Foto[]> {
   if (!resposta.ok) throw new Error("Não foi possível carregar o álbum.");
   return resposta.json();
 }
-
 export function urlAbsoluta(caminho: string): string {
-  return `${API_URL}${caminho}`;
+  return caminho.startsWith("http") ? caminho : `${API_URL}${caminho}`;
 }
-
 const CHAVE_TOKEN = "admin_token";
 
 export function lerToken(): string | null {

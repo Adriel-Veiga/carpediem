@@ -5,8 +5,8 @@ from pillow_heif import register_heif_opener
 
 register_heif_opener()  # ensina o Pillow a abrir HEIC
 
-LADO_PRINCIPAL = 2000
-LADO_MINIATURA = 600
+LADO_PRINCIPAL = 1600
+LADO_MINIATURA = 400
 
 
 def classificar(largura: int, altura: int) -> str:
@@ -22,7 +22,7 @@ def _para_jpeg(imagem: Image.Image, lado_maximo: int) -> bytes:
     copia = imagem.copy()
     copia.thumbnail((lado_maximo, lado_maximo))  # mantém a proporção
     saida = BytesIO()
-    copia.save(saida, format="JPEG", quality=85, optimize=True)
+    copia.save(saida, format="JPEG", quality=82, optimize=True)
     return saida.getvalue()
 
 
@@ -36,8 +36,8 @@ def processar(conteudo: bytes) -> dict:
     imagem = ImageOps.exif_transpose(imagem)  # corrige a rotação
     imagem = imagem.convert("RGB")
 
-    principal = _para_jpeg(imagem, LADO_PRINCIPAL)
-    miniatura = _para_jpeg(imagem, LADO_MINIATURA)
+    principal = _para_jpeg(imagem, LADO_PRINCIPAL )
+    miniatura = _para_jpeg(imagem, LADO_MINIATURA )
 
     # Medidas finais, depois de endireitar a foto
     largura, altura = imagem.size

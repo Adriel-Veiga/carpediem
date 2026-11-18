@@ -1,39 +1,41 @@
+import os
 import re
+import tempfile
 import time
 import uuid
 import zipfile
-from io import BytesIO
-from pathlib import Path
+from contextlib import suppress
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app import storage
 from app.auth import criar_token, exigir_admin, senha_correta
-from app.database import Base, engine, get_db
+from app.database import get_db, preparar_banco
 from app.images import processar
 from app.models import Photo
 from app.schemas import LoginIn, VisibilidadeIn
 
 app = FastAPI(title="CarpeDiem")
 
-# Permite que o frontend (Vite) converse com o backend
+# Endereços do site em produção, separados por vírgula (definido no Render)
+ORIGENS = [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=ORIGENS,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-Base.metadata.create_all(engine)  # cria a tabela se ainda não existir
-app.mount("/media", StaticFiles(directory=UPLOAD_DIR), name="media")
+preparar_banco()
 
 TIPOS_PERMITIDOS = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 TAMANHO_MAXIMO = 15 * 1024 * 1024  # 15 MB
@@ -46,13 +48,14 @@ def foto_para_dict(f: Photo) -> dict:
         "width": f.width,
         "height": f.height,
         "orientation": f.orientation,
-        "url": f"/media/{f.id}.jpg",
-        "thumb_url": f"/media/{f.id}_thumb.jpg",
+        "url": storage.url_publica(f"{f.id}.jpg"),
+        "thumb_url": storage.url_publica(f"{f.id}_thumb.jpg"),
     }
 
 
 @app.get("/health")
-def health():
+def health(db: Session = Depends(get_db)):
+    db.execute(text("select 1"))  # também mantém o banco ativo
     return {"status": "ok"}
 
 
@@ -79,17 +82,26 @@ async def enviar_foto(
         raise HTTPException(status_code=400, detail=str(erro))
 
     base = uuid.uuid4().hex
-    (UPLOAD_DIR / f"{base}.jpg").write_bytes(resultado["principal"])
-    (UPLOAD_DIR / f"{base}_thumb.jpg").write_bytes(resultado["miniatura"])
+    principal, miniatura = f"{base}.jpg", f"{base}_thumb.jpg"
+    try:
+        await run_in_threadpool(storage.enviar, principal, resultado["principal"])
+        await run_in_threadpool(storage.enviar, miniatura, resultado["miniatura"])
+    except storage.ErroArmazenamento:
+        with suppress(storage.ErroArmazenamento):
+            await run_in_threadpool(storage.apagar, [principal, miniatura])
+        raise HTTPException(
+            status_code=502, detail="Não foi possível salvar a foto. Tente de novo."
+        )
 
-    foto = Photo(
-        id=base,
-        author_name=nome,
-        width=resultado["largura"],
-        height=resultado["altura"],
-        orientation=resultado["orientacao"],
+    db.add(
+        Photo(
+            id=base,
+            author_name=nome,
+            width=resultado["largura"],
+            height=resultado["altura"],
+            orientation=resultado["orientacao"],
+        )
     )
-    db.add(foto)
     db.commit()
 
     return {
@@ -148,8 +160,12 @@ def apagar_foto(foto_id: str, db: Session = Depends(get_db)):
     foto = db.get(Photo, foto_id)
     if foto is None:
         raise HTTPException(status_code=404, detail="Foto não encontrada.")
-    for sufixo in (".jpg", "_thumb.jpg"):
-        (UPLOAD_DIR / f"{foto.id}{sufixo}").unlink(missing_ok=True)
+    try:
+        storage.apagar([f"{foto.id}.jpg", f"{foto.id}_thumb.jpg"])
+    except storage.ErroArmazenamento:
+        raise HTTPException(
+            status_code=502, detail="Não foi possível apagar os arquivos. Tente de novo."
+        )
     db.delete(foto)
     db.commit()
     return {"ok": True}
@@ -160,17 +176,26 @@ def baixar_tudo(db: Session = Depends(get_db)):
     consulta = (
         select(Photo).where(Photo.deleted.is_(False)).order_by(Photo.created_at)
     )
-    memoria = BytesIO()
-    # JPEG já é comprimido, então ZIP_STORED evita gastar CPU à toa
-    with zipfile.ZipFile(memoria, "w", zipfile.ZIP_STORED) as pacote:
+    # O .zip é montado em arquivo temporário (e não na memória), porque o
+    # plano gratuito do servidor tem pouca RAM.
+    arquivo = tempfile.TemporaryFile()
+    with zipfile.ZipFile(arquivo, "w", zipfile.ZIP_STORED) as pacote:
         for numero, f in enumerate(db.scalars(consulta).all(), start=1):
-            caminho = UPLOAD_DIR / f"{f.id}.jpg"
-            if caminho.exists():
+            dados = storage.baixar(f"{f.id}.jpg")
+            if dados is not None:
                 autor = re.sub(r"[^\w\-]+", "_", f.author_name)
-                pacote.write(caminho, f"{numero:04d}_{autor}.jpg")
-    memoria.seek(0)
+                pacote.writestr(f"{numero:04d}_{autor}.jpg", dados)
+    arquivo.seek(0)
+
+    def pedacos():
+        try:
+            while bloco := arquivo.read(1024 * 1024):
+                yield bloco
+        finally:
+            arquivo.close()
+
     return StreamingResponse(
-        memoria,
+        pedacos(),
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="album-anna-lua.zip"'},
     )
