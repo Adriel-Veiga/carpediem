@@ -1,1 +1,7 @@
 album.db
+
+# segredos
+.env
+__pycache__/
+*.pyc
+.vscode/
