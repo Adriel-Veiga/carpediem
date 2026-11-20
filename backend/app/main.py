@@ -23,7 +23,7 @@ from app.schemas import LoginIn, VisibilidadeIn
 app = FastAPI(title="CarpeDiem")
 
 # Endereços do site em produção, separados por vírgula (definido no Render)
-ORIGENS = [
+ORIGENS = ["https://adriel-veiga.github.io"] + [
     o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
 
